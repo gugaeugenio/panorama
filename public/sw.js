@@ -2,7 +2,7 @@
 // O app (HTML, CSS, JS, ícones) fica guardado no aparelho; as notícias vêm sempre da rede
 // primeiro e, sem conexão, da última edição que foi aberta.
 
-const SHELL = 'panorama-app-v2';
+const SHELL = 'panorama-app-v3';
 const DATA = 'panorama-edicao';
 const SHELL_FILES = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icones/apple-touch-icon.png', 'icones/icone-192.png'];
 
@@ -20,12 +20,15 @@ self.addEventListener('activate', (event) => {
 
 async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
+  // Guarda sem o "?v=" para manter uma cópia só de cada arquivo no aparelho.
+  const url = new URL(request.url);
+  const key = url.origin + url.pathname;
   try {
     const response = await fetch(request);
-    if (response.ok) cache.put(request, response.clone());
+    if (response.ok) cache.put(key, response.clone());
     return response;
   } catch (error) {
-    const cached = await cache.match(request, { ignoreSearch: true });
+    const cached = await cache.match(key);
     if (cached) return cached;
     throw error;
   }

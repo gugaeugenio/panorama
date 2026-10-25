@@ -103,7 +103,9 @@ function forgetKey() {
 async function data(path) {
   let res;
   try {
-    res = await fetch(`data/${path}${state.key ? '.bin' : ''}`, { cache: 'no-cache' });
+    // O endereço muda a cada edição (?v=), então o cache do GitHub nunca devolve uma edição velha.
+    const v = path === 'versao.json' ? Date.now() : state.version || Date.now();
+    res = await fetch(`data/${path}${state.key ? '.bin' : ''}?v=${encodeURIComponent(v)}`, { cache: 'no-cache' });
   } catch {
     throw new Error('Sem conexão e sem edição guardada neste aparelho');
   }
@@ -308,30 +310,43 @@ async function renderSection(id, notesLimit = 30) {
   });
 }
 
+function noteRow(n) {
+  return html`<li class="story-row is-note" data-section="${n.section}">
+    <div>
+      <p class="kicker"><span class="kicker-section">${sectionName(n.section)}</span><span class="kicker-topic">Nota rápida</span></p>
+      ${headline(n, 'h3')}
+      <p class="proof-mini">Noticiada por uma redação só, ${relTime(n.updated)}</p>
+    </div>
+  </li>`;
+}
+
 async function renderSearch(q) {
   $('#search-input').value = q;
   view.innerHTML = html`<div class="page-head"><h1>${q}</h1><p>Buscando…</p></div>`.__html;
   state.searchIndex ||= await data('busca.json');
   const terms = fold(q).split(/\s+/).filter((t) => t.length >= 2);
-  const hits = state.searchIndex.filter((r) => {
-    const hay = fold(`${r.t} ${r.d || ''} ${r.a || ''} ${r.x || ''}`);
-    return terms.every((t) => hay.includes(t));
-  });
-  const stories = hits.filter((r) => r.k === 's').slice(0, 60)
-    .map((r) => ({ id: r.id, title: r.t, dek: r.d, section: r.s, assunto: r.a, updated: r.u, confirmations: r.c, image: r.i }));
-  const notes = hits.filter((r) => r.k === 'n').slice(0, 40).map((r) => ({ id: r.id, title: r.t, section: r.s, published: r.u }));
+  // Cada termo precisa aparecer no começo de alguma palavra ("israel" acha "israelense").
+  const patterns = terms.map((t) => new RegExp(`(^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  const hits = state.searchIndex
+    .filter((r) => {
+      const hay = fold(`${r.t} ${r.d || ''} ${r.a || ''} ${r.x || ''}`);
+      return patterns.every((re) => re.test(hay));
+    })
+    .slice(0, 80);
+  const rows = hits.map((r) => (r.k === 's'
+    ? storyRow({ id: r.id, title: r.t, dek: r.d, section: r.s, assunto: r.a, updated: r.u, confirmations: r.c, image: r.i })
+    : noteRow({ id: r.id, title: r.t, section: r.s, updated: r.u })));
+  const confirmed = hits.filter((r) => r.k === 's').length;
   const google = `https://news.google.com/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+  const summary = hits.length
+    ? `${plural(hits.length, 'notícia', 'notícias')} das últimas 72 horas${confirmed ? `, ${plural(confirmed, 'confirmada', 'confirmadas')} por mais de um veículo` : ''}.`
+    : 'Nenhuma notícia com esses termos nas últimas 72 horas.';
 
   view.innerHTML = html`
-    <div class="page-head"><h1>${q}</h1><p>${plural(stories.length, 'matéria', 'matérias')} e ${plural(notes.length, 'nota', 'notas')} no Panorama.</p></div>
-    <div class="section-layout">
-      <div>
-        ${stories.length ? html`<ol class="story-list">${join(stories.map(storyRow))}</ol>` : html`<p class="hint">Nenhuma matéria com esses termos.</p>`}
-      </div>
-      <div>
-        ${notes.length ? notesBlock(notes, { hint: 'Noticiadas por uma redação só.' }) : ''}
-        <p><a class="more-btn" href="${google}" target="_blank" rel="noopener noreferrer">Procurar também na internet</a></p>
-      </div>
+    <div class="page-head"><h1>${q}</h1><p>${summary}</p></div>
+    <div class="search-results">
+      ${rows.length ? html`<ol class="story-list">${join(rows)}</ol>` : ''}
+      <p><a class="more-btn" href="${google}" target="_blank" rel="noopener noreferrer">Procurar também na internet</a></p>
     </div>
   `.__html;
 }
@@ -539,6 +554,7 @@ async function renderPage(r) {
   const samePage = lastPage === key;
   lastPage = key;
   renderNav(r.name === 'section' ? r.id : r.name === 'front' ? '' : r.name === 'archive' ? 'arquivo' : null);
+  if (r.name !== 'search') $('#search-input').value = '';
   try {
     if (r.name === 'section') await renderSection(r.id);
     else if (r.name === 'search') await renderSearch(r.q);
@@ -602,13 +618,37 @@ async function poll() {
 
 $('#fresh-pill').addEventListener('click', () => renderPage(currentPage()));
 
+let toastTimer;
+function toast(message) {
+  const el = $('#toast');
+  el.textContent = message;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.hidden = true;
+  }, 4000);
+}
+
 $('#refresh-btn').addEventListener('click', async () => {
   const btn = $('#refresh-btn');
   btn.classList.add('spinning');
-  state.searchIndex = null;
-  await renderPage(currentPage());
-  renderIndicators();
-  btn.classList.remove('spinning');
+  const before = state.renderedVersion;
+  try {
+    const v = await data('versao.json');
+    state.version = v.version;
+    state.updatedAt = v.updatedAt;
+    state.searchIndex = null;
+    // Da busca, atualizar leva de volta à capa (com a barra de busca limpa).
+    const page = currentPage();
+    if (page.name === 'search') location.hash = '#/';
+    else await renderPage(page);
+    renderIndicators();
+    toast(v.version !== before ? 'Edição nova carregada.' : `Você já está na edição mais recente, publicada ${relTime(v.updatedAt)}.`);
+  } catch (error) {
+    toast(`Não deu para atualizar: ${error.message}.`);
+  } finally {
+    btn.classList.remove('spinning');
+  }
 });
 
 // ---------- tema ----------
