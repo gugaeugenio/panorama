@@ -327,20 +327,24 @@ async function renderSearch(q) {
   const terms = fold(q).split(/\s+/).filter((t) => t.length >= 2);
   // Cada termo precisa aparecer no começo de alguma palavra ("israel" acha "israelense").
   const patterns = terms.map((t) => new RegExp(`(^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
-  const hits = state.searchIndex
-    .filter((r) => {
-      const hay = fold(`${r.t} ${r.d || ''} ${r.a || ''} ${r.x || ''}`);
-      return patterns.every((re) => re.test(hay));
-    })
-    .slice(0, 80);
+  // Índices do arquivo (meses fechados), carregados uma vez por busca.
+  if (!state.archiveIndex) {
+    const months = (await data('arquivo/index.json').catch(() => ({ months: [] }))).months || [];
+    const parts = await Promise.all(months.map((m) => data(`arquivo/indice/${m}.json`).catch(() => [])));
+    state.archiveIndex = parts.flat().map((r) => ({ ...r, id: archiveId(r.dia, r.id), i: null }));
+  }
+  const matches = (r) => patterns.every((re) => re.test(fold(`${r.t} ${r.d || ''} ${r.a || ''} ${r.x || ''}`)));
+  const recent = state.searchIndex.filter(matches);
+  const older = state.archiveIndex.filter(matches).sort((a, b) => b.u.localeCompare(a.u));
+  const hits = [...recent, ...older].slice(0, 120);
   const rows = hits.map((r) => (r.k === 's'
     ? storyRow({ id: r.id, title: r.t, dek: r.d, section: r.s, assunto: r.a, updated: r.u, confirmations: r.c, image: r.i })
     : noteRow({ id: r.id, title: r.t, section: r.s, updated: r.u })));
   const confirmed = hits.filter((r) => r.k === 's').length;
   const google = `https://news.google.com/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
   const summary = hits.length
-    ? `${plural(hits.length, 'notícia', 'notícias')} das últimas 72 horas${confirmed ? `, ${plural(confirmed, 'confirmada', 'confirmadas')} por mais de um veículo` : ''}.`
-    : 'Nenhuma notícia com esses termos nas últimas 72 horas.';
+    ? `${plural(hits.length, 'notícia', 'notícias')}${older.length ? `, ${older.length} delas do arquivo` : ''}${confirmed ? `; ${plural(confirmed, 'confirmada', 'confirmadas')} por mais de um veículo` : ''}.`
+    : 'Nenhuma notícia com esses termos no Panorama.';
 
   view.innerHTML = html`
     <div class="page-head"><h1>${q}</h1><p>${summary}</p></div>
@@ -403,27 +407,54 @@ async function renderBackstage() {
 const fullDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 const dayLabel = (day) => fullDate.format(new Date(`${day}T12:00:00Z`));
 
+// Matérias do arquivo têm id "AAAA-MM-DD~id": o detalhe vem do arquivo do dia.
+const archiveId = (day, id) => `${day}~${id}`;
+const archiveDays = new Map();
+
+async function archiveDay(day) {
+  if (!archiveDays.has(day)) archiveDays.set(day, await data(`arquivo/dias/${day}.json`));
+  return archiveDays.get(day);
+}
+
+function entryToStory(e) {
+  return { id: archiveId(e.day, e.id), title: e.title, dek: e.dek, section: e.section, assunto: e.assunto, updated: e.updated, confirmations: e.confirmations, image: e.image };
+}
+
 async function renderArchive(day) {
   if (!day) {
     const d = await data('arquivo/index.json');
-    remember(d);
-    const rows = d.days.map((x) => html`<li><a href="#/arquivo/${x.day}">${dayLabel(x.day)}</a><span class="hint">${plural(x.count, 'matéria', 'matérias')}</span></li>`);
+    const rows = d.days.map((x) => html`<li>
+      <a href="#/arquivo/${x.day}">${dayLabel(x.day)}</a>
+      <span class="hint">${plural(x.stories, 'matéria', 'matérias')}, ${plural(x.notes, 'nota', 'notas')}${x.open ? ', em andamento' : ''}</span>
+    </li>`);
     view.innerHTML = html`
-      <div class="page-head"><h1>Arquivo</h1><p>Toda matéria escrita pelo Panorama fica guardada aqui, organizada por dia.</p></div>
-      ${rows.length ? html`<ol class="archive-days">${join(rows)}</ol>` : emptyState('O arquivo ainda está vazio', d.newsroom?.enabled ? 'As primeiras matérias aparecem aqui assim que a redação terminar de escrevê-las.' : 'O arquivo começa a ser preenchido quando a redação automática for ligada (veja o README).')}
+      <div class="page-head"><h1>Arquivo</h1><p>Tudo o que passou pelo Panorama, guardado por dia. As matérias confirmadas ficam com o texto completo; as notas rápidas, com o título.</p></div>
+      ${rows.length ? html`<ol class="archive-days">${join(rows)}</ol>` : emptyState('O arquivo ainda está vazio', 'Ele começa a ser preenchido na próxima atualização do Panorama.')}
     `.__html;
     return;
   }
-  const d = await data(`arquivo/${day}.json`);
-  remember(d);
-  const sections = d.sections.map((sec) => {
-    const groups = sec.assuntos.map((g) => html`<h3 class="archive-topic">${g.name}</h3><ol class="story-list">${join(g.stories.map(storyRow))}</ol>`);
-    if (sec.outras.length) groups.push(html`${sec.assuntos.length ? html`<h3 class="archive-topic">Outras notícias</h3>` : ''}<ol class="story-list">${join(sec.outras.map(storyRow))}</ol>`);
-    return html`<section class="topic" data-section="${sec.id}"><h2 class="topic-name">${sec.name}<span class="assunto-count">${plural(sec.total, 'matéria', 'matérias')}</span></h2>${join(groups)}</section>`;
+  const d = await archiveDay(day);
+  const sections = SECTIONS.map((sec) => {
+    const mine = d.entries.filter((e) => e.section === sec.id);
+    const stories = mine.filter((e) => e.k === 's').sort((a, b) => b.confirmations - a.confirmations);
+    const notes = mine.filter((e) => e.k === 'n').sort((a, b) => b.updated.localeCompare(a.updated));
+    if (!mine.length) return '';
+    const topics = new Map();
+    for (const e of stories) topics.set(e.assunto || '', [...(topics.get(e.assunto || '') || []), e]);
+    const groups = [...topics.entries()].sort((a, b) => (a[0] ? 0 : 1) - (b[0] ? 0 : 1) || b[1].length - a[1].length)
+      .map(([name, list]) => html`${topics.size > 1 || name ? html`<h3 class="archive-topic">${name || 'Outras notícias'}</h3>` : ''}<ol class="story-list">${join(list.map((e) => storyRow(entryToStory(e))))}</ol>`);
+    const notesList = notes.length
+      ? html`<details class="archive-notes"><summary>${plural(notes.length, 'nota rápida', 'notas rápidas')}</summary><ol class="story-list">${join(notes.map((e) => noteRow({ id: archiveId(e.day, e.id), title: e.title, section: e.section, updated: e.updated })))}</ol></details>`
+      : '';
+    return html`<section class="topic" data-section="${sec.id}">
+      <h2 class="topic-name">${sec.name}<span class="assunto-count">${plural(stories.length, 'matéria', 'matérias')}</span></h2>
+      ${join(groups)}${notesList}
+    </section>`;
   });
+  const total = d.entries.filter((e) => e.k === 's').length;
   view.innerHTML = html`
-    <div class="page-head"><h1>${dayLabel(day)}</h1><p>${plural(d.total, 'matéria', 'matérias')} nesta edição. <a href="#/arquivo">Voltar ao arquivo</a></p></div>
-    ${d.total ? html`<div class="archive-day">${join(sections)}</div>` : emptyState('Nenhuma matéria neste dia', 'Escolha outro dia no arquivo.')}
+    <div class="page-head"><h1>${dayLabel(day)}</h1><p>${plural(total, 'matéria confirmada', 'matérias confirmadas')}${d.open ? ', edição ainda em andamento' : ''}. <a href="#/arquivo">Ver outros dias</a></p></div>
+    <div class="archive-day">${join(sections)}</div>
   `.__html;
 }
 
@@ -434,9 +465,24 @@ async function openStory(id) {
   if (!storyDialog.open) storyDialog.showModal();
   let s;
   try {
-    s = await data(`m/${encodeURIComponent(id)}.json`);
+    if (id.includes('~')) {
+      const [day, key] = id.split('~');
+      const e = (await archiveDay(day)).entries.find((x) => x.id === key);
+      if (!e) throw Object.assign(new Error('Não encontrado'), { status: 404 });
+      s = {
+        ...entryToStory(e),
+        published: e.published,
+        written: false,
+        resumo: [],
+        corpo: e.corpo || null,
+        originals: e.originals || (e.link ? [{ title: e.title, link: e.link, outlet: 'reportagem original', published: e.published }] : []),
+        related: [],
+      };
+    } else {
+      s = await data(`m/${encodeURIComponent(id)}.json`);
+    }
   } catch (error) {
-    storyBody.innerHTML = emptyState('Matéria indisponível', error.status === 404 ? 'Esta notícia saiu da edição atual.' : error.message).__html;
+    storyBody.innerHTML = emptyState('Matéria indisponível', error.status === 404 ? 'Esta notícia saiu da edição atual. Procure pelo assunto na busca: ela continua no arquivo.' : error.message).__html;
     return;
   }
 
@@ -604,6 +650,8 @@ async function poll() {
     if (v.version && v.version !== state.renderedVersion) {
       state.updatedAt = v.updatedAt;
       state.searchIndex = null;
+      state.archiveIndex = null;
+      archiveDays.clear();
       const page = currentPage();
       const emptyFront = page.name === 'front' && !document.querySelector('.manchete');
       // Na capa vazia, ou no topo da capa sem matéria aberta, atualiza direto; senão avisa.
@@ -638,6 +686,8 @@ $('#refresh-btn').addEventListener('click', async () => {
     state.version = v.version;
     state.updatedAt = v.updatedAt;
     state.searchIndex = null;
+    state.archiveIndex = null;
+    archiveDays.clear();
     // Da busca, atualizar leva de volta à capa (com a barra de busca limpa).
     const page = currentPage();
     if (page.name === 'search') location.hash = '#/';
@@ -719,6 +769,7 @@ async function init() {
   }
   if (state.cripto) state.key = (await storedKey()) || (await askPassword());
   state.hasArchive = ((await data('arquivo/index.json').catch(() => ({ days: [] }))).days || []).length > 0;
+  state.archiveIndex = null;
   window.addEventListener('hashchange', route);
   await route();
   renderIndicators();

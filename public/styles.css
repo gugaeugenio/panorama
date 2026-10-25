@@ -380,6 +380,8 @@ body.locked .masthead, body.locked .indicators, body.locked .colophon { display:
 .archive-days a::first-letter { text-transform: uppercase; }
 .archive-days a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .archive-day { max-width: 900px; }
+.archive-notes { margin-top: 14px; }
+.archive-notes summary { cursor: pointer; font-weight: 650; color: var(--ink-2); padding: 8px 0; }
 .archive-topic { margin: 18px 0 0; font-size: var(--step-0); font-weight: 750; color: var(--sec, var(--ink)); }
 .page-head h1::first-letter { text-transform: uppercase; }
 

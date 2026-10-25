@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # guardar os dias fechados do arquivo na branch `arquivo`
   pages: write
   id-token: write
   actions: write
@@ -44,11 +44,37 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
 
+      # Dias fechados do arquivo (cifrados) moram na branch `arquivo`.
+      - name: Trazer o arquivo
+        run: |
+          if git ls-remote --exit-code --heads origin arquivo > /dev/null; then
+            git fetch --depth=1 origin arquivo
+            git worktree add --detach arquivo-repo FETCH_HEAD
+          else
+            mkdir -p arquivo-repo
+          fi
+
       # Com o segredo PANORAMA_SENHA, a edição sai criptografada e com o texto completo.
       - name: Gerar a edição
         env:
           PANORAMA_SENHA: ${{ secrets.PANORAMA_SENHA }}
-        run: node scripts/edicao.js --saida site --base "${{ steps.pages.outputs.base_url }}"
+        run: node scripts/edicao.js --saida site --base "${{ steps.pages.outputs.base_url }}" --arquivo arquivo-repo
+
+      - name: Guardar os dias fechados
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd arquivo-repo
+          if [ ! -e .git ]; then
+            git init -q -b arquivo
+            git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          fi
+          git config user.name "Robô do Panorama"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Nenhum dia novo para guardar."; exit 0; fi
+          git commit -q -m "arquivo: dias fechados"
+          git push origin HEAD:arquivo
 
       - uses: actions/upload-pages-artifact@v3
         with:

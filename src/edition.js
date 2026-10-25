@@ -8,7 +8,7 @@
 //   data/busca.json             índice compacto para a busca, feita no próprio celular
 //   data/indicadores.json       dólar, euro, Selic e IPCA (Banco Central)
 //   data/bastidores.json        estado de cada veículo e da redação
-//   data/arquivo/...            dias anteriores (quando houver matérias redigidas)
+//   data/arquivo/...            arquivo permanente por dia e índices de busca (src/archive.js)
 //
 // Com uma chave (app privado), cada arquivo sai cifrado como <nome>.json.bin e um
 // data/cripto.json público diz ao app como derivar a chave da frase-senha. Só nesse caso o
@@ -17,8 +17,9 @@
 import { mkdir, writeFile, rm, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sealJson } from './crypto.js';
+import { jsonFiles } from './archive.js';
 import { SECTIONS } from './sources.js';
-import { buildFront, buildSection, buildStory, toStory, buildArchiveDays, buildArchiveDay } from './present.js';
+import { buildFront, buildSection, buildStory, toStory } from './present.js';
 
 const SECTION_NOTES = 300;
 
@@ -42,7 +43,7 @@ function searchIndex(store, newsroom) {
  * Escreve a edição completa em `outDir/data`. Escreve numa pasta temporária e troca no fim,
  * para o app nunca ler uma edição pela metade.
  */
-export async function writeEdition(outDir, { store, newsroom, indicators, texts = null, crypto = null, plainTextOk = false }) {
+export async function writeEdition(outDir, { store, newsroom, indicators, texts = null, crypto = null, plainTextOk = false, archive = null, closedDir = null }) {
   const writeJson = (path, data) => (crypto ? writeFile(`${path}.bin`, sealJson(data, crypto.key)) : writeFile(path, JSON.stringify(data)));
   const withText = !!texts && (!!crypto || plainTextOk);
   const dataDir = join(outDir, 'data');
@@ -79,9 +80,8 @@ export async function writeEdition(outDir, { store, newsroom, indicators, texts 
   if (indicators) await writeJson(join(tmp, 'indicadores.json'), indicators);
   await writeJson(join(tmp, 'bastidores.json'), { ...head, newsroom: newsroom.status(), clusters: store.clusters.length, outlets: store.status() });
 
-  const days = buildArchiveDays(newsroom);
-  await writeJson(join(tmp, 'arquivo', 'index.json'), { ...head, days });
-  for (const { day } of days) await writeJson(join(tmp, 'arquivo', `${day}.json`), { ...head, ...buildArchiveDay(newsroom, day) });
+  if (archive && closedDir) await archive.publish(join(tmp, 'arquivo'), closedDir, jsonFiles(crypto?.key));
+  else await writeJson(join(tmp, 'arquivo', 'index.json'), { days: [], months: [] });
 
   if (crypto) await writeFile(join(tmp, 'cripto.json'), JSON.stringify(crypto.descriptor));
 

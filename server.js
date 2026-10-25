@@ -13,6 +13,8 @@ import { Newsroom } from './src/newsroom.js';
 import { getIndicators } from './src/indicators.js';
 import { writeEdition } from './src/edition.js';
 import { TextStore } from './src/texts.js';
+import { Archive, jsonFiles } from './src/archive.js';
+import { readFile as readFileText, writeFile } from 'node:fs/promises';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC = join(ROOT, 'public');
@@ -44,13 +46,22 @@ const newsroom = new Newsroom({
 const texts = new TextStore({ log });
 const TEXTS_PATH = join(ROOT, 'data', 'textos.json');
 
+// Arquivo permanente: dias abertos em data/arquivo-aberto.json, dias fechados em data/arquivo/.
+const archive = new Archive({ log });
+const ARCHIVE_OPEN = join(ROOT, 'data', 'arquivo-aberto.json');
+const ARCHIVE_CLOSED = join(ROOT, 'data', 'arquivo');
+const files = jsonFiles(null);
+
 async function publish(store) {
   try {
     await newsroom.run(store);
     await texts.fill(store);
     await texts.saveFile(TEXTS_PATH);
+    archive.update(store, newsroom, texts, new Set(Object.keys(await archive.closedDays(ARCHIVE_CLOSED, files))));
+    await archive.close(ARCHIVE_CLOSED, files);
+    await writeFile(ARCHIVE_OPEN, JSON.stringify(archive));
     const indicators = await getIndicators().catch(() => null);
-    await writeEdition(PUBLIC, { store, newsroom, indicators, texts, plainTextOk: true });
+    await writeEdition(PUBLIC, { store, newsroom, indicators, texts, plainTextOk: true, archive, closedDir: ARCHIVE_CLOSED });
   } catch (error) {
     log.warn(`Falha ao gerar a edição: ${error.message}`);
   }
@@ -98,6 +109,11 @@ const server = createServer(async (req, res) => {
 });
 
 await Promise.all([store.load(), newsroom.load(), texts.loadFile(TEXTS_PATH)]);
+try {
+  archive.fromJSON(JSON.parse(await readFileText(ARCHIVE_OPEN, 'utf8')));
+} catch {
+  /* arquivo começando agora */
+}
 // Gera a edição em segundo plano: o app já abre com a anterior enquanto isso.
 if (store.items.size) publish(store);
 server.listen(PORT, HOST, () => {
