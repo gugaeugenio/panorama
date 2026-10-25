@@ -1,0 +1,469 @@
+/* Panorama — folha de estilo.
+   Papel frio, tinta azul-profunda; cada editoria tem uma cor, usada só para identificá-la.
+   A organização é o centro: manchete, assuntos do dia, editorias e notas rápidas,
+   cada camada com um peso visual próprio e claro. */
+
+:root {
+  --paper: #eceff3;
+  --sheet: #f8f9fb;
+  --ink: #16203a;
+  --ink-2: #4b556b;
+  --ink-3: #6f7889;
+  --rule: #d3d9e2;
+  --focus: #2457d6;
+  --ok: #1d6a43;
+  --tint: #e2e7ee;
+
+  --politica: #9b2335;
+  --economia: #1d6a43;
+  --mundo: #2a4d9e;
+  --esporte: #8a6400;
+  --brasil: #5b479c;
+  --ciencia: #0d6e7c;
+
+  --display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --text: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --ui: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.4375rem;
+  --step-3: 1.875rem;
+  --step-4: clamp(2.125rem, 1.2rem + 3.6vw, 3.5rem);
+
+  --gutter: clamp(16px, 3vw, 40px);
+  --max: 1320px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #0f1522;
+    --sheet: #161e2e;
+    --ink: #e6ebf3;
+    --ink-2: #b2bccc;
+    --ink-3: #8b96a8;
+    --rule: #2a3447;
+    --focus: #7aa2ff;
+    --ok: #5fc28d;
+    --tint: #1d2638;
+    --politica: #ef7d8c;
+    --economia: #5fc28d;
+    --mundo: #8fabf2;
+    --esporte: #e3b84a;
+    --brasil: #b6a4ec;
+    --ciencia: #5cc5d3;
+  }
+}
+:root[data-theme='dark'] {
+  --paper: #0f1522;
+  --sheet: #161e2e;
+  --ink: #e6ebf3;
+  --ink-2: #b2bccc;
+  --ink-3: #8b96a8;
+  --rule: #2a3447;
+  --focus: #7aa2ff;
+  --ok: #5fc28d;
+  --tint: #1d2638;
+  --politica: #ef7d8c;
+  --economia: #5fc28d;
+  --mundo: #8fabf2;
+  --esporte: #e3b84a;
+  --brasil: #b6a4ec;
+  --ciencia: #5cc5d3;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: var(--step-0);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+a { color: inherit; }
+img { max-width: 100%; display: block; }
+button { font: inherit; color: inherit; }
+code { font-size: 0.9em; padding: 1px 5px; border-radius: 4px; background: var(--tint); }
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: -999px; top: 8px; background: var(--ink); color: var(--paper); padding: 8px 12px; z-index: 10; }
+.skip:focus { left: 8px; }
+
+/* Cor da editoria, herdada pelos filhos. */
+[data-section='politica'] { --sec: var(--politica); }
+[data-section='economia'] { --sec: var(--economia); }
+[data-section='mundo'] { --sec: var(--mundo); }
+[data-section='esporte'] { --sec: var(--esporte); }
+[data-section='brasil'] { --sec: var(--brasil); }
+[data-section='ciencia'] { --sec: var(--ciencia); }
+
+/* ---------- Cabeçalho ---------- */
+
+.masthead { background: var(--sheet); border-bottom: 1px solid var(--rule); position: sticky; top: 0; z-index: 5; padding-top: env(safe-area-inset-top); }
+
+.masthead-inner {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 14px var(--gutter) 10px;
+  display: grid;
+  grid-template-columns: auto 1fr minmax(220px, 360px) auto;
+  align-items: center;
+  gap: 8px 24px;
+}
+
+.brand { font-family: var(--display); font-weight: 850; font-stretch: 72%; font-size: 2.125rem; line-height: 1; letter-spacing: -0.01em; text-decoration: none; }
+.dateline { margin: 0; color: var(--ink-2); font-size: var(--step--1); white-space: nowrap; }
+
+.search input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.9375rem;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.search input::placeholder { color: var(--ink-3); }
+
+.refresh { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: var(--step--1); white-space: nowrap; }
+
+.icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; color: var(--ink-2); }
+.icon-btn:hover { background: var(--paper); color: var(--ink); }
+.icon-btn.spinning svg { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.sections { max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); display: flex; gap: 4px 22px; overflow-x: auto; scrollbar-width: none; }
+.sections::-webkit-scrollbar { display: none; }
+.sections a { position: relative; padding: 8px 0 10px; font-weight: 560; font-size: 0.9375rem; text-decoration: none; color: var(--ink-2); white-space: nowrap; }
+.sections a:hover, .sections a[aria-current='page'] { color: var(--ink); }
+.sections a[aria-current='page']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--sec, var(--ink)); }
+
+/* ---------- Indicadores ---------- */
+
+.indicators { max-width: var(--max); margin: 0 auto; padding: 10px var(--gutter); display: flex; flex-wrap: wrap; gap: 6px 28px; font-size: var(--step--1); color: var(--ink-2); }
+.indicator strong { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+.indicator .delta { margin-left: 4px; }
+.indicator .up { color: var(--economia); }
+.indicator .down { color: var(--politica); }
+.indicators .credit { margin-left: auto; color: var(--ink-3); }
+
+/* ---------- Estrutura ---------- */
+
+main { max-width: var(--max); margin: 0 auto; padding: 8px var(--gutter) 48px; outline: none; }
+
+.fresh-pill {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 6;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgb(10 20 40 / 0.25);
+}
+
+.hint { margin: 0; color: var(--ink-3); font-size: var(--step--1); }
+
+/* Faixa: cada camada da capa tem seu título. */
+.band { padding-top: 36px; }
+.band-title {
+  margin: 0 0 4px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--display);
+  font-stretch: 78%;
+  font-weight: 850;
+  font-size: var(--step-2);
+  line-height: 1.1;
+}
+
+/* Rótulo da matéria: editoria em cor e assunto ao lado. */
+.kicker { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: var(--step--1); }
+.kicker-section { color: var(--sec, var(--ink-2)); font-weight: 700; text-decoration: none; }
+a.kicker-section:hover { text-decoration: underline; }
+.kicker-topic { color: var(--ink-2); font-weight: 560; }
+
+.headline { margin: 4px 0 0; font-family: var(--display); font-weight: 700; font-stretch: 86%; font-size: var(--step-1); line-height: 1.18; text-wrap: pretty; }
+.headline a { text-decoration: none; }
+.headline a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.dek { margin: 8px 0 0; font-family: var(--text); color: var(--ink-2); line-height: 1.55; max-width: 62ch; }
+.dek-sm { font-size: 0.9375rem; margin-top: 4px; }
+.dek-lg { font-size: var(--step-1); }
+
+/* Linha de apuração */
+.proof { margin: 10px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: var(--step--1); color: var(--ink-2); }
+.proof .check, .story-meta .check { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--sec, var(--ok)); color: var(--sheet); flex: none; }
+.proof-time { color: var(--ink-3); }
+.proof-time::before { content: ''; display: inline-block; width: 1px; height: 0.9em; margin-right: 8px; background: var(--rule); vertical-align: -1px; }
+.proof-mini { margin: 4px 0 0; color: var(--ink-3); font-size: var(--step--1); }
+
+/* ---------- Capa ---------- */
+
+.front-top {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1fr);
+  gap: 28px 48px;
+  padding: 22px 0 8px;
+}
+
+.manchete { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-content: start; }
+.manchete.has-image { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+.manchete-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; background: var(--rule); }
+.manchete h1 {
+  margin: 8px 0 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-stretch: 78%;
+  font-size: var(--step-4);
+  line-height: 1.03;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+.manchete h1 a { text-decoration: none; }
+.manchete h1 a:hover { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 6px; }
+.manchete .dek { font-size: var(--step-1); margin-top: 14px; }
+
+/* Notas rápidas */
+.notes { align-self: start; }
+.notes h2 { margin: 0; font-size: var(--step-0); font-weight: 750; }
+.notes .hint { margin: 2px 0 10px; }
+.notes ol { list-style: none; margin: 0; padding: 0; }
+.notes li { display: grid; grid-template-columns: 3.2rem 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--rule); }
+.notes time { font-variant-numeric: tabular-nums; color: var(--ink-3); font-size: var(--step--1); padding-top: 2px; }
+.note-section { display: block; font-size: var(--step--1); color: var(--sec, var(--ink-3)); font-weight: 650; }
+.notes a { text-decoration: none; font-size: 0.9375rem; line-height: 1.35; }
+.notes a:hover { text-decoration: underline; }
+
+/* Assuntos do dia */
+.assunto { padding: 22px 0 24px; border-bottom: 1px solid var(--rule); }
+.assunto:last-child { border-bottom: 0; }
+.assunto-name {
+  margin: 0 0 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--display);
+  font-stretch: 82%;
+  font-weight: 800;
+  font-size: var(--step-2);
+  color: var(--sec, var(--ink));
+}
+.assunto-count, .topic-name .assunto-count { font-family: var(--ui); font-stretch: 100%; font-size: var(--step--1); font-weight: 560; color: var(--ink-3); }
+.assunto-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px 40px; }
+.assunto-main { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: start; }
+.assunto-main:not(:has(img)) { grid-template-columns: minmax(0, 1fr); }
+.assunto-img { width: 200px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; background: var(--rule); }
+.assunto-main .headline { font-size: var(--step-2); margin-top: 0; }
+.assunto-list { list-style: none; margin: 0; padding: 0; }
+.assunto-list li { padding: 10px 0; border-top: 1px solid var(--rule); }
+.assunto-list li:first-child { border-top: 0; padding-top: 0; }
+.assunto-list .headline { font-size: var(--step-0); margin: 0; }
+
+/* Destaques (sem redação ativa) */
+.destaques-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 32px; }
+.destaques-grid li { padding: 18px 0; border-bottom: 1px solid var(--rule); }
+
+/* Editorias */
+.desks-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 40px; padding-top: 20px; }
+.desk h3 {
+  margin: 0 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 3px solid var(--sec);
+  font-family: var(--display);
+  font-stretch: 80%;
+  font-weight: 800;
+  font-size: var(--step-1);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.desk h3 a { text-decoration: none; }
+.desk h3 .more { font-family: var(--ui); font-stretch: 100%; font-size: var(--step--1); font-weight: 560; color: var(--ink-2); }
+.desk h3 .more:hover { color: var(--ink); text-decoration: underline; }
+.desk ul { list-style: none; margin: 0; padding: 0; }
+.desk li { padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.desk li:last-child { border-bottom: 0; }
+.desk .headline { font-size: var(--step-0); }
+.desk li:first-child .headline { font-size: var(--step-1); }
+.desk li:not(:first-child) .dek { display: none; }
+.desk .empty { color: var(--ink-3); padding: 12px 0; margin: 0; font-size: 0.9375rem; }
+
+/* ---------- Editoria e busca ---------- */
+
+.page-head { padding: 24px 0 14px; border-bottom: 3px solid var(--sec, var(--ink)); }
+.page-head h1 { margin: 0; font-family: var(--display); font-stretch: 75%; font-weight: 850; font-size: var(--step-4); line-height: 1; }
+.page-head p { margin: 8px 0 0; color: var(--ink-2); font-size: 0.9375rem; }
+
+.section-layout { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); gap: 32px 48px; padding-top: 8px; }
+.section-layout > div:last-child, .section-layout > aside { padding-top: 20px; }
+
+.topic { padding-top: 22px; }
+.topic-name {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--sec, var(--ink));
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--display);
+  font-stretch: 82%;
+  font-weight: 800;
+  font-size: var(--step-2);
+}
+
+.story-list { list-style: none; margin: 0; padding: 0; }
+.story-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 8px 24px; padding: 18px 0; border-bottom: 1px solid var(--rule); }
+.story-row:last-child { border-bottom: 0; }
+.story-row:not(:has(.thumb)) { grid-template-columns: minmax(0, 1fr); }
+.story-row .headline { font-size: var(--step-1); margin-top: 0; }
+.story-row .thumb { width: 150px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; background: var(--rule); }
+
+.notice { padding: 28px 0; color: var(--ink-2); max-width: 70ch; }
+.notice h2 { color: var(--ink); font-family: var(--display); font-stretch: 85%; margin: 0 0 6px; }
+.notice p { margin: 0 0 10px; }
+.more-btn { margin: 18px 0 0; padding: 10px 18px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); cursor: pointer; font-weight: 600; }
+.more-btn:disabled { opacity: 0.6; cursor: progress; }
+
+/* ---------- Arquivo ---------- */
+
+.archive-days { list-style: none; margin: 8px 0 0; padding: 0; max-width: 640px; }
+.archive-days li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.archive-days a { font-family: var(--display); font-stretch: 86%; font-weight: 700; font-size: var(--step-1); text-decoration: none; }
+.archive-days a::first-letter { text-transform: uppercase; }
+.archive-days a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.archive-day { max-width: 900px; }
+.archive-topic { margin: 18px 0 0; font-size: var(--step-0); font-weight: 750; color: var(--sec, var(--ink)); }
+.page-head h1::first-letter { text-transform: uppercase; }
+
+/* ---------- Bastidores ---------- */
+
+.backstage { padding-bottom: 20px; }
+.sources-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9375rem; }
+.sources-table th { text-align: left; font-weight: 650; color: var(--ink-2); padding: 8px 12px 8px 0; border-bottom: 1px solid var(--ink-3); }
+.sources-table td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.sources-table td.num { font-variant-numeric: tabular-nums; }
+.status-ok { color: var(--economia); font-weight: 600; }
+.status-warn { color: var(--esporte); font-weight: 600; }
+.status-err { color: var(--politica); font-weight: 600; }
+.table-wrap { overflow-x: auto; }
+
+/* ---------- Matéria ---------- */
+
+dialog.story {
+  margin: 0 0 0 auto;
+  width: min(780px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 0;
+  border: 0;
+  background: var(--sheet);
+  color: var(--ink);
+  box-shadow: -10px 0 40px rgb(10 20 40 / 0.18);
+}
+dialog.story::backdrop { background: rgb(10 16 30 / 0.45); }
+dialog.story[open] { animation: slide-in 0.22s ease-out; }
+@keyframes slide-in { from { transform: translateX(40px); opacity: 0; } }
+
+.story-inner { position: relative; padding: calc(30px + env(safe-area-inset-top)) clamp(16px, 5vw, 56px) calc(64px + env(safe-area-inset-bottom)); }
+.story-close { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; }
+
+.story-detail h1 {
+  margin: 10px 40px 0 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-stretch: 80%;
+  font-size: var(--step-3);
+  line-height: 1.08;
+  text-wrap: balance;
+}
+.story-meta { margin: 14px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--ink-2); font-size: var(--step--1); }
+.story-img { margin-top: 20px; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: var(--rule); }
+
+.resumo { margin-top: 24px; padding: 16px 20px; border-left: 4px solid var(--sec, var(--ink)); background: var(--tint); border-radius: 0 6px 6px 0; }
+.resumo h2 { margin: 0 0 6px; font-size: var(--step-0); font-weight: 750; }
+.resumo ul { margin: 0; padding-left: 1.1em; }
+.resumo li { margin: 4px 0; line-height: 1.45; }
+
+.article { margin-top: 22px; font-family: var(--text); font-size: 1.125rem; line-height: 1.7; max-width: 66ch; }
+.article p { margin: 0 0 1em; }
+.article h2, .article h3, .article h4 { font-family: var(--display); font-stretch: 90%; line-height: 1.2; margin: 1.4em 0 0.5em; }
+.article img { border-radius: 4px; margin: 1em 0 0.4em; height: auto; }
+.article figcaption { font-family: var(--ui); font-size: var(--step--1); color: var(--ink-3); }
+.article blockquote { margin: 1em 0; padding-left: 16px; border-left: 3px solid var(--rule); color: var(--ink-2); }
+.article a { text-underline-offset: 3px; }
+
+.related { margin-top: 28px; padding-top: 16px; border-top: 2px solid var(--ink); }
+.related h2 { margin: 0 0 6px; font-size: var(--step-0); font-weight: 750; }
+.related ul { list-style: none; margin: 0; padding: 0; }
+.related li { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.related .headline { font-size: var(--step-0); margin: 0; }
+
+.originals { margin-top: 28px; font-size: 0.9375rem; color: var(--ink-2); }
+.originals summary { cursor: pointer; font-weight: 600; }
+.originals ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.originals li { padding: 8px 0; border-top: 1px solid var(--rule); }
+.originals li a { display: block; text-underline-offset: 3px; }
+
+.loading { color: var(--ink-3); padding: 24px 0; }
+
+/* ---------- Rodapé ---------- */
+
+.colophon { max-width: var(--max); margin: 0 auto; padding: 24px var(--gutter) calc(40px + env(safe-area-inset-bottom)); border-top: 1px solid var(--rule); color: var(--ink-3); font-size: var(--step--1); }
+.colophon p { max-width: 80ch; margin: 0; }
+
+/* ---------- Responsivo ---------- */
+
+@media (max-width: 1080px) {
+  .front-top, .section-layout { grid-template-columns: minmax(0, 1fr); }
+  .notes ol { columns: 2; column-gap: 32px; }
+  .notes li { break-inside: avoid; }
+  .front-top .notes li:nth-child(n + 9) { display: none; }
+  .desks-grid, .destaques-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .assunto-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .masthead-inner { grid-template-columns: 1fr auto; padding-top: 10px; }
+  .brand { font-size: 1.75rem; }
+  .dateline { grid-column: 1 / -1; grid-row: 3; }
+  .search { grid-column: 1 / -1; grid-row: 2; }
+  .refresh { grid-column: 2; grid-row: 1; }
+  #updated { display: none; }
+  /* No celular o cabeçalho rola com a página: fixo, ocuparia boa parte da tela. */
+  .masthead { position: static; }
+  .masthead-inner { padding-bottom: 6px; }
+  .dateline { display: none; }
+  .manchete.has-image { grid-template-columns: minmax(0, 1fr); }
+  .manchete-img { order: -1; aspect-ratio: 16 / 9; }
+  .notes ol { columns: 1; }
+  .front-top .notes li:nth-child(n + 6) { display: none; }
+  .desks-grid, .destaques-grid { grid-template-columns: minmax(0, 1fr); }
+  .assunto-main { grid-template-columns: minmax(0, 1fr); }
+  .assunto-img { width: 100%; aspect-ratio: 16 / 9; }
+  .story-row { grid-template-columns: minmax(0, 1fr) 96px; gap: 6px 14px; }
+  .story-row .thumb { width: 96px; }
+  .story-row .dek { display: none; }
+  .indicators { gap: 4px 18px; }
+  .indicators .credit { margin-left: 0; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

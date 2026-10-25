@@ -1,0 +1,61 @@
+# Robô do Panorama: busca as notícias, gera a edição e publica no GitHub Pages.
+# Roda sozinho a cada 15 minutos (o GitHub pode atrasar alguns minutos), a cada mudança no
+# código e quando acionado à mão na aba Actions. Gratuito para repositórios públicos.
+
+name: Edição
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+# Uma edição de cada vez; se outra começar, a anterior termina primeiro.
+concurrency:
+  group: edicao
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --omit=dev
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Gerar a edição
+        run: node scripts/edicao.js --saida site --estado "${{ steps.pages.outputs.base_url }}/data/acervo.json"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      # O GitHub desliga agendamentos de repositórios sem atividade por 60 dias.
+      # Reativar a cada execução mantém o robô rodando indefinidamente.
+      - name: Manter o agendamento ativo
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/edicao.yml/enable" || true
