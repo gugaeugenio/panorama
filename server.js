@@ -12,6 +12,7 @@ import { NewsStore } from './src/store.js';
 import { Newsroom } from './src/newsroom.js';
 import { getIndicators } from './src/indicators.js';
 import { writeEdition } from './src/edition.js';
+import { TextStore } from './src/texts.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC = join(ROOT, 'public');
@@ -39,11 +40,17 @@ const newsroom = new Newsroom({
   log,
 });
 
+// No Mac o app só é acessível pelo próprio computador, então o texto completo pode ir em aberto.
+const texts = new TextStore({ log });
+const TEXTS_PATH = join(ROOT, 'data', 'textos.json');
+
 async function publish(store) {
   try {
     await newsroom.run(store);
+    await texts.fill(store);
+    await texts.saveFile(TEXTS_PATH);
     const indicators = await getIndicators().catch(() => null);
-    await writeEdition(PUBLIC, { store, newsroom, indicators });
+    await writeEdition(PUBLIC, { store, newsroom, indicators, texts, plainTextOk: true });
   } catch (error) {
     log.warn(`Falha ao gerar a edição: ${error.message}`);
   }
@@ -90,8 +97,9 @@ const server = createServer(async (req, res) => {
   }
 });
 
-await Promise.all([store.load(), newsroom.load()]);
-if (store.items.size) await publish(store);
+await Promise.all([store.load(), newsroom.load(), texts.loadFile(TEXTS_PATH)]);
+// Gera a edição em segundo plano: o app já abre com a anterior enquanto isso.
+if (store.items.size) publish(store);
 server.listen(PORT, HOST, () => {
   log.info(`Panorama no ar: http://localhost:${PORT}`);
   store.start();

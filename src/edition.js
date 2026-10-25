@@ -9,17 +9,18 @@
 //   data/indicadores.json       dólar, euro, Selic e IPCA (Banco Central)
 //   data/bastidores.json        estado de cada veículo e da redação
 //   data/arquivo/...            dias anteriores (quando houver matérias redigidas)
+//
+// Com uma chave (app privado), cada arquivo sai cifrado como <nome>.json.bin e um
+// data/cripto.json público diz ao app como derivar a chave da frase-senha. Só nesse caso o
+// texto integral das reportagens entra na edição: ele nunca é publicado em aberto.
 
 import { mkdir, writeFile, rm, rename } from 'node:fs/promises';
 import { join } from 'node:path';
+import { sealJson } from './crypto.js';
 import { SECTIONS } from './sources.js';
 import { buildFront, buildSection, buildStory, toStory, buildArchiveDays, buildArchiveDay } from './present.js';
 
 const SECTION_NOTES = 300;
-
-async function writeJson(path, data) {
-  await writeFile(path, JSON.stringify(data));
-}
 
 /** Índice de busca: uma linha curta por matéria ou nota. */
 function searchIndex(store, newsroom) {
@@ -41,7 +42,9 @@ function searchIndex(store, newsroom) {
  * Escreve a edição completa em `outDir/data`. Escreve numa pasta temporária e troca no fim,
  * para o app nunca ler uma edição pela metade.
  */
-export async function writeEdition(outDir, { store, newsroom, indicators }) {
+export async function writeEdition(outDir, { store, newsroom, indicators, texts = null, crypto = null, plainTextOk = false }) {
+  const writeJson = (path, data) => (crypto ? writeFile(`${path}.bin`, sealJson(data, crypto.key)) : writeFile(path, JSON.stringify(data)));
+  const withText = !!texts && (!!crypto || plainTextOk);
   const dataDir = join(outDir, 'data');
   const tmp = join(outDir, `data.tmp-${process.pid}`);
   await rm(tmp, { recursive: true, force: true });
@@ -62,7 +65,14 @@ export async function writeEdition(outDir, { store, newsroom, indicators }) {
   for (const a of newsroom.articles.values()) if (a.apto) ids.add(a.key);
   for (const id of ids) {
     const story = buildStory(store, newsroom, id);
-    if (story) await writeJson(join(tmp, 'm', `${id}.json`), story);
+    if (!story) continue;
+    delete story.readableItemId;
+    if (withText && !story.written) {
+      const cluster = store.getCluster(id);
+      const best = cluster && texts.bestFor(cluster);
+      if (best) story.corpo = best.html;
+    }
+    await writeJson(join(tmp, 'm', `${id}.json`), story);
   }
 
   await writeJson(join(tmp, 'busca.json'), searchIndex(store, newsroom));
@@ -72,6 +82,8 @@ export async function writeEdition(outDir, { store, newsroom, indicators }) {
   const days = buildArchiveDays(newsroom);
   await writeJson(join(tmp, 'arquivo', 'index.json'), { ...head, days });
   for (const { day } of days) await writeJson(join(tmp, 'arquivo', `${day}.json`), { ...head, ...buildArchiveDay(newsroom, day) });
+
+  if (crypto) await writeFile(join(tmp, 'cripto.json'), JSON.stringify(crypto.descriptor));
 
   await rm(dataDir, { recursive: true, force: true });
   await rename(tmp, dataDir);

@@ -14,6 +14,14 @@ minutos, sem depender do Mac ligado. Para instalar no iPhone:
 O ícone abre o Panorama em tela cheia e, sem internet, mostra a última edição aberta.
 O andamento do robô fica na aba **Actions** do repositório.
 
+### App privado e texto completo
+
+Com o segredo `PANORAMA_SENHA` cadastrado no repositório (Settings → Secrets and variables →
+Actions), o robô publica a edição **criptografada** (AES-256-GCM, chave derivada da
+frase-senha com PBKDF2) e inclui o **texto completo** das reportagens de veículos abertos.
+O app pede a frase-senha uma vez por aparelho. Sem o segredo, a edição é pública e traz só
+títulos e resumos. Para trocar a senha, basta atualizar o segredo: o app pede a nova.
+
 ## Como abrir no Mac
 
 Dois cliques em **`Abrir Panorama.command`** no Finder. Na primeira vez ele instala as

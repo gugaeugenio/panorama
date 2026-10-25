@@ -42,8 +42,11 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
 
+      # Com o segredo PANORAMA_SENHA, a edição sai criptografada e com o texto completo.
       - name: Gerar a edição
-        run: node scripts/edicao.js --saida site --estado "${{ steps.pages.outputs.base_url }}/data/acervo.json"
+        env:
+          PANORAMA_SENHA: ${{ secrets.PANORAMA_SENHA }}
+        run: node scripts/edicao.js --saida site --base "${{ steps.pages.outputs.base_url }}"
 
       - uses: actions/upload-pages-artifact@v3
         with:

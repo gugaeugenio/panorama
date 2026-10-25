@@ -36,17 +36,88 @@ function html(strings, ...values) {
 }
 const join = (list) => raw(list.map(render).join(''));
 
+// ---------- edição privada (criptografada) ----------
+// Quando existe data/cripto.json, todos os arquivos da edição vêm cifrados (AES-256-GCM, chave
+// derivada da frase-senha com PBKDF2). A chave fica guardada só neste aparelho.
+
+const KEY_STORAGE = 'panorama:chave';
+const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+
+async function importAesKey(raw) {
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+}
+
+async function decrypt(buf, key) {
+  const bytes = new Uint8Array(buf);
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, key, bytes.slice(12));
+}
+
+async function gunzipJson(buf) {
+  const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(stream).text());
+}
+
+async function keyIsValid(key) {
+  try {
+    return new TextDecoder().decode(await decrypt(b64(state.cripto.check), key)) === 'panorama';
+  } catch {
+    return false;
+  }
+}
+
+/** Deriva a chave da frase-senha; devolve null se a senha estiver errada. */
+async function unlock(password) {
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const raw = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(state.cripto.salt), iterations: state.cripto.iterations }, material, 256);
+  const key = await importAesKey(raw);
+  if (!(await keyIsValid(key))) return null;
+  try {
+    localStorage.setItem(KEY_STORAGE, toB64(raw));
+  } catch {
+    /* navegação privada: a senha vale só enquanto o app estiver aberto */
+  }
+  return key;
+}
+
+async function storedKey() {
+  try {
+    const saved = localStorage.getItem(KEY_STORAGE);
+    if (!saved) return null;
+    const key = await importAesKey(b64(saved));
+    return (await keyIsValid(key)) ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+function forgetKey() {
+  try {
+    localStorage.removeItem(KEY_STORAGE);
+  } catch {
+    /* ignora */
+  }
+}
+
 /** Lê um arquivo da edição (data/...). O caminho é relativo para funcionar em qualquer endereço. */
 async function data(path) {
   let res;
   try {
-    res = await fetch(`data/${path}`, { cache: 'no-cache' });
+    res = await fetch(`data/${path}${state.key ? '.bin' : ''}`, { cache: 'no-cache' });
   } catch {
     throw new Error('Sem conexão e sem edição guardada neste aparelho');
   }
   if (res.status === 404) throw Object.assign(new Error('Não encontrado'), { status: 404 });
   if (!res.ok) throw new Error(`Erro ${res.status} ao carregar a edição`);
-  return res.json();
+  if (!state.key) return res.json();
+  try {
+    return await gunzipJson(await decrypt(await res.arrayBuffer(), state.key));
+  } catch {
+    // A senha foi trocada no GitHub: pede a nova.
+    forgetKey();
+    location.reload();
+    throw new Error('A senha deste aparelho não abre mais a edição');
+  }
 }
 
 const fold = (s = '') => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -289,6 +360,9 @@ async function renderBackstage() {
       ${nr.lastError ? html`<p class="status-err">Último erro: ${nr.lastError}</p>` : ''}`
     : html`<p>Desligada. As matérias aparecem com o título e o resumo originais de um dos veículos que noticiaram o fato.</p>`;
 
+  const lock = state.key
+    ? html`<section class="notice"><h2>Este aparelho</h2><p>O Panorama é privado e está liberado aqui com a sua senha.</p><button type="button" class="more-btn" id="forget-key">Sair deste aparelho</button></section>`
+    : '';
   view.innerHTML = html`
     <div class="page-head"><h1>Bastidores</h1><p>Como o Panorama apura, e o estado de cada parte agora.</p></div>
     <div class="backstage">
@@ -302,8 +376,13 @@ async function renderBackstage() {
           <tbody>${join(rows)}</tbody>
         </table></div>
       </section>
+      ${lock}
     </div>
   `.__html;
+  $('#forget-key')?.addEventListener('click', () => {
+    forgetKey();
+    location.reload();
+  });
 }
 
 const fullDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -347,7 +426,9 @@ async function openStory(id) {
   }
 
   let body = '';
-  if (s.written) {
+  if (s.corpo) {
+    body = html`<div class="article">${raw(s.corpo)}</div>`;
+  } else if (s.written) {
     body = html`
       ${s.resumo.length ? html`<section class="resumo" aria-labelledby="resumo-t"><h2 id="resumo-t">Em resumo</h2><ul>${join(s.resumo.map((r) => html`<li>${r}</li>`))}</ul></section>` : ''}
       <div class="article">${join(s.texto.map((p) => html`<p>${p}</p>`))}</div>`;
@@ -554,8 +635,49 @@ $('#theme-btn').addEventListener('click', () => {
 
 // ---------- início ----------
 
+/** Tela de senha do app privado. Resolve quando a senha certa for digitada. */
+function askPassword() {
+  document.body.classList.add('locked');
+  view.innerHTML = html`<form class="lock" id="lock-form">
+    <h1>Panorama</h1>
+    <p>Este jornal é privado. Digite a sua frase-senha para abrir. Ela fica guardada neste aparelho.</p>
+    <label class="sr-only" for="lock-pass">Frase-senha</label>
+    <input id="lock-pass" type="password" autocomplete="current-password" placeholder="Frase-senha" required>
+    <button type="submit">Abrir o jornal</button>
+    <p class="lock-error" id="lock-error" role="alert"></p>
+  </form>`.__html;
+  const form = $('#lock-form');
+  $('#lock-pass').focus();
+  return new Promise((done) => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button');
+      btn.disabled = true;
+      btn.textContent = 'Conferindo…';
+      $('#lock-error').textContent = '';
+      const key = await unlock($('#lock-pass').value);
+      if (key) {
+        document.body.classList.remove('locked');
+        done(key);
+      } else {
+        $('#lock-error').textContent = 'Senha incorreta. Confira maiúsculas, acentos e espaços.';
+        btn.disabled = false;
+        btn.textContent = 'Abrir o jornal';
+      }
+    });
+  });
+}
+
 async function init() {
   updateClock();
+  // Edição privada? O descritor é o único arquivo em aberto.
+  try {
+    const res = await fetch('data/cripto.json', { cache: 'no-cache' });
+    if (res.ok) state.cripto = await res.json();
+  } catch {
+    /* offline: tenta com o que estiver guardado */
+  }
+  if (state.cripto) state.key = (await storedKey()) || (await askPassword());
   state.hasArchive = ((await data('arquivo/index.json').catch(() => ({ days: [] }))).days || []).length > 0;
   window.addEventListener('hashchange', route);
   await route();

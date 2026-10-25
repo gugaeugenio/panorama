@@ -2,7 +2,7 @@
 // O app (HTML, CSS, JS, ícones) fica guardado no aparelho; as notícias vêm sempre da rede
 // primeiro e, sem conexão, da última edição que foi aberta.
 
-const SHELL = 'panorama-app-v1';
+const SHELL = 'panorama-app-v2';
 const DATA = 'panorama-edicao';
 const SHELL_FILES = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icones/apple-touch-icon.png', 'icones/icone-192.png'];
 
