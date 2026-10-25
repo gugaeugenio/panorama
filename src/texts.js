@@ -66,15 +66,26 @@ export class TextStore {
   }
 
   /**
-   * Extrai o texto das reportagens abertas que ainda não foram lidas, das mais recentes
-   * para as mais antigas, até `limit` por rodada (as demais ficam para a próxima).
+   * Garante um texto completo por fato, começando pelos mais importantes: primeiro as
+   * matérias confirmadas (na ordem da capa), depois as notas rápidas, das mais novas às mais
+   * antigas. De cada fato, lê só a reportagem do veículo com extração mais limpa; se ela não
+   * render texto, a próxima rodada tenta outro veículo. Até `limit` leituras por rodada.
    */
-  async fill(store, { limit = 150, concurrency = 6 } = {}) {
+  async fill(store, { limit = 300, concurrency = 8 } = {}) {
     for (const id of this.texts.keys()) if (!store.getItem(id)) this.texts.delete(id);
-    const pending = [...store.items.values()]
-      .filter((i) => i.readable && !this.texts.has(i.id))
-      .sort((a, b) => Date.parse(b.published) - Date.parse(a.published))
-      .slice(0, limit);
+    const preference = (i) => {
+      const p = PREFERRED.indexOf(i.outletId);
+      return p === -1 ? PREFERRED.length : p;
+    };
+    const stories = store.query({ limit: Infinity }).filter((c) => c.outletCount >= 2);
+    const notes = store.query({ limit: Infinity, order: 'recent' }).filter((c) => c.outletCount < 2);
+    const pending = [];
+    for (const cluster of [...stories, ...notes]) {
+      if (pending.length >= limit) break;
+      if (this.bestFor(cluster)) continue;
+      const next = cluster.items.filter((i) => i.readable && !this.texts.has(i.id)).sort((a, b) => preference(a) - preference(b))[0];
+      if (next) pending.push(next);
+    }
     let ok = 0;
     await mapLimit(pending, concurrency, async (item) => {
       const a = await extractArticle(item).catch(() => null);
@@ -86,7 +97,7 @@ export class TextStore {
       }
       // Em erro de rede, não marca nada: tenta de novo na próxima rodada.
     });
-    if (pending.length) this.log.info?.(`Textos completos: ${ok} de ${pending.length} reportagens novas extraídas (${this.size} guardados).`);
+    if (pending.length) this.log.info?.(`Textos completos: ${ok} de ${pending.length} leituras deram certo (${this.size} guardados).`);
     return ok;
   }
 
